@@ -242,6 +242,8 @@ int main(int argc, char * argv[])
   std::list<ros1_bridge::BridgeHandles> all_handles;
   std::list<ros1_bridge::ServiceBridge1to2> service_bridges_1_to_2;
   std::list<ros1_bridge::ServiceBridge2to1> service_bridges_2_to_1;
+  std::list<ros1_bridge::Bridge1to2Handles> handles_1_to_2;
+  std::list<ros1_bridge::Bridge2to1Handles> handles_2_to_1;
 
   // bridge all topics listed in a ROS 1 parameter
   // the topics parameter needs to be an array
@@ -311,6 +313,88 @@ int main(int argc, char * argv[])
     fprintf(
       stderr,
       "The parameter '%s' either doesn't exist or isn't an array\n", topics_parameter_name);
+  }
+
+  // Unidirectional ROS 1 -> ROS 2 topics. Unlike bidirectional `topics`, this
+  // creates no ROS 2 subscription for the topic, so it never relies on Fast-DDS
+  // ignore_local_publications (broken on Humble's Fast-DDS 2.6, rmw_fastrtps#573).
+  XmlRpc::XmlRpcValue topics_1_to_2;
+  if (
+    ros1_node.getParam("topics_1_to_2", topics_1_to_2) &&
+    topics_1_to_2.getType() == XmlRpc::XmlRpcValue::TypeArray)
+  {
+    for (size_t i = 0; i < static_cast<size_t>(topics_1_to_2.size()); ++i) {
+      std::string topic_name = static_cast<std::string>(topics_1_to_2[i]["topic"]);
+      std::string type_name = static_cast<std::string>(topics_1_to_2[i]["type"]);
+      size_t queue_size = static_cast<int>(topics_1_to_2[i]["queue_size"]);
+      if (!queue_size) {
+        queue_size = 100;
+      }
+      printf(
+        "Trying to create 1-to-2 bridge for topic '%s' with ROS 2 type '%s'\n",
+        topic_name.c_str(), type_name.c_str());
+      try {
+        if (topics_1_to_2[i].hasMember("qos")) {
+          printf("Setting up QoS for '%s': ", topic_name.c_str());
+          auto qos_settings = qos_from_params(topics_1_to_2[i]["qos"]);
+          printf("\n");
+          handles_1_to_2.push_back(
+            ros1_bridge::create_bridge_from_1_to_2(
+              ros1_node, ros2_node, "", topic_name, queue_size,
+              type_name, topic_name, qos_settings));
+        } else {
+          handles_1_to_2.push_back(
+            ros1_bridge::create_bridge_from_1_to_2(
+              ros1_node, ros2_node, "", topic_name, queue_size,
+              type_name, topic_name, queue_size));
+        }
+      } catch (std::runtime_error & e) {
+        fprintf(
+          stderr,
+          "failed to create 1-to-2 bridge for topic '%s' with ROS 2 type '%s': %s\n",
+          topic_name.c_str(), type_name.c_str(), e.what());
+      }
+    }
+  }
+
+  // Unidirectional ROS 2 -> ROS 1 topics.
+  XmlRpc::XmlRpcValue topics_2_to_1;
+  if (
+    ros1_node.getParam("topics_2_to_1", topics_2_to_1) &&
+    topics_2_to_1.getType() == XmlRpc::XmlRpcValue::TypeArray)
+  {
+    for (size_t i = 0; i < static_cast<size_t>(topics_2_to_1.size()); ++i) {
+      std::string topic_name = static_cast<std::string>(topics_2_to_1[i]["topic"]);
+      std::string type_name = static_cast<std::string>(topics_2_to_1[i]["type"]);
+      size_t queue_size = static_cast<int>(topics_2_to_1[i]["queue_size"]);
+      if (!queue_size) {
+        queue_size = 100;
+      }
+      printf(
+        "Trying to create 2-to-1 bridge for topic '%s' with ROS 2 type '%s'\n",
+        topic_name.c_str(), type_name.c_str());
+      try {
+        if (topics_2_to_1[i].hasMember("qos")) {
+          printf("Setting up QoS for '%s': ", topic_name.c_str());
+          auto qos_settings = qos_from_params(topics_2_to_1[i]["qos"]);
+          printf("\n");
+          handles_2_to_1.push_back(
+            ros1_bridge::create_bridge_from_2_to_1(
+              ros2_node, ros1_node, type_name, topic_name, qos_settings,
+              "", topic_name, queue_size));
+        } else {
+          handles_2_to_1.push_back(
+            ros1_bridge::create_bridge_from_2_to_1(
+              ros2_node, ros1_node, type_name, topic_name, queue_size,
+              "", topic_name, queue_size));
+        }
+      } catch (std::runtime_error & e) {
+        fprintf(
+          stderr,
+          "failed to create 2-to-1 bridge for topic '%s' with ROS 2 type '%s': %s\n",
+          topic_name.c_str(), type_name.c_str(), e.what());
+      }
+    }
   }
 
   // ROS 1 Services in ROS 2

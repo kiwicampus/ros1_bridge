@@ -326,13 +326,16 @@ int main(int argc, char * argv[])
     for (size_t i = 0; i < static_cast<size_t>(topics_1_to_2.size()); ++i) {
       std::string topic_name = static_cast<std::string>(topics_1_to_2[i]["topic"]);
       std::string type_name = static_cast<std::string>(topics_1_to_2[i]["type"]);
+      // optional ros2_topic: publish on ROS 2 under another name
+      std::string ros2_topic_name = topics_1_to_2[i].hasMember("ros2_topic") ?
+        static_cast<std::string>(topics_1_to_2[i]["ros2_topic"]) : topic_name;
       size_t queue_size = static_cast<int>(topics_1_to_2[i]["queue_size"]);
       if (!queue_size) {
         queue_size = 100;
       }
       printf(
-        "Trying to create 1-to-2 bridge for topic '%s' with ROS 2 type '%s'\n",
-        topic_name.c_str(), type_name.c_str());
+        "Trying to create 1-to-2 bridge for topic '%s' -> '%s' with ROS 2 type '%s'\n",
+        topic_name.c_str(), ros2_topic_name.c_str(), type_name.c_str());
       try {
         if (topics_1_to_2[i].hasMember("qos")) {
           printf("Setting up QoS for '%s': ", topic_name.c_str());
@@ -341,12 +344,12 @@ int main(int argc, char * argv[])
           handles_1_to_2.push_back(
             ros1_bridge::create_bridge_from_1_to_2(
               ros1_node, ros2_node, "", topic_name, queue_size,
-              type_name, topic_name, qos_settings));
+              type_name, ros2_topic_name, qos_settings));
         } else {
           handles_1_to_2.push_back(
             ros1_bridge::create_bridge_from_1_to_2(
               ros1_node, ros2_node, "", topic_name, queue_size,
-              type_name, topic_name, queue_size));
+              type_name, ros2_topic_name, queue_size));
         }
       } catch (std::runtime_error & e) {
         fprintf(
@@ -366,13 +369,16 @@ int main(int argc, char * argv[])
     for (size_t i = 0; i < static_cast<size_t>(topics_2_to_1.size()); ++i) {
       std::string topic_name = static_cast<std::string>(topics_2_to_1[i]["topic"]);
       std::string type_name = static_cast<std::string>(topics_2_to_1[i]["type"]);
+      // optional ros1_topic: publish on ROS 1 under another name
+      std::string ros1_topic_name = topics_2_to_1[i].hasMember("ros1_topic") ?
+        static_cast<std::string>(topics_2_to_1[i]["ros1_topic"]) : topic_name;
       size_t queue_size = static_cast<int>(topics_2_to_1[i]["queue_size"]);
       if (!queue_size) {
         queue_size = 100;
       }
       printf(
-        "Trying to create 2-to-1 bridge for topic '%s' with ROS 2 type '%s'\n",
-        topic_name.c_str(), type_name.c_str());
+        "Trying to create 2-to-1 bridge for topic '%s' -> '%s' with ROS 2 type '%s'\n",
+        topic_name.c_str(), ros1_topic_name.c_str(), type_name.c_str());
       try {
         if (topics_2_to_1[i].hasMember("qos")) {
           printf("Setting up QoS for '%s': ", topic_name.c_str());
@@ -381,12 +387,12 @@ int main(int argc, char * argv[])
           handles_2_to_1.push_back(
             ros1_bridge::create_bridge_from_2_to_1(
               ros2_node, ros1_node, type_name, topic_name, qos_settings,
-              "", topic_name, queue_size));
+              "", ros1_topic_name, queue_size));
         } else {
           handles_2_to_1.push_back(
             ros1_bridge::create_bridge_from_2_to_1(
               ros2_node, ros1_node, type_name, topic_name, queue_size,
-              "", topic_name, queue_size));
+              "", ros1_topic_name, queue_size));
         }
       } catch (std::runtime_error & e) {
         fprintf(
